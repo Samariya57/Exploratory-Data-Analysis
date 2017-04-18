@@ -1,0 +1,88 @@
+---
+title: "Analysis of an ambient air pollutant across the US"
+author: "Mariia Danilenko"
+output: 
+  html_document:
+    keep_rm: true
+---
+# Introduction
+Fine particulate matter (PM2.5) is an ambient air pollutant for which there is strong evidence that it is harmful to human health. In the United States, the Environmental Protection Agency (EPA) is tasked with setting national ambient air quality standards for fine PM and for tracking the emissions of this pollutant into the atmosphere. Approximatly every 3 years, the EPA releases its database on emissions of PM2.5. This database is known as the National Emissions Inventory (NEI). You can read more information about the NEI at the EPA National Emissions Inventory web site.
+
+For each year and for each type of PM source, the NEI records how many tons of PM2.5 were emitted from that source over the course of the entire year. The data that you will use for this assignment are for 1999, 2002, 2005, and 2008.
+# Questions  
+1. Have total emissions from PM2.5 decreased in the United States from 1999 to 2008?   
+2. Have total emissions from PM2.5 decreased in the Baltimore City, Maryland (fips == "24510") from 1999 to 2008? 
+3. Of the four types of sources indicated by the type (point, nonpoint, onroad, nonroad) variable, which of these four sources have seen decreases in emissions from 1999–2008 for Baltimore City? Which have seen increases in emissions from 1999–2008?   
+4. Across the United States, how have emissions from coal combustion-related sources changed from 1999–2008?  
+5. How have emissions from motor vehicle sources changed from 1999–2008 in Baltimore City?    
+6. Compare emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles County, California (fips == "06037"). Which city has seen greater changes over time in motor vehicle emissions?
+# Analysis  
+## Data processing  
+Download data with the given link:  
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/exdata%2Fdata%2FNEI_data.zip"
+download.file(url, "AirData.zip")
+unzip("AirData.zip", exdir="AirData")
+files <- list.files("AirData")
+filename1 <- paste("./AirData/",files[1],sep="")
+filename2 <- paste("./AirData/",files[2],sep="")
+data1 <- readRDS(filename1)
+head(data1)
+data2 <- readRDS(filename2)
+head(data2)
+```
+## Total emissions across the US
+```{r}
+totalEm <- tapply(data2$Emissions, data2$year, sum)
+barplot(names.arg=names(totalEm),totalEm, xlab="Year", ylab="Emissions given in tons", pch=7, col="lightblue")
+```
+## Total emissions for Baltimor city, Maryland by years  
+```{r}
+ baltData <- subset(data2, data2$fips == "24510")
+ baltEm <- tapply(baltData$Emissions, baltData$year, sum)
+ barplot(names.arg =names(baltEm),baltEm, xlab="Year", ylab="Emissions   given in tons", pch=7, col="darkblue")
+```
+## Total emissions for Baltimor city, Maryland by years and types  
+```{r}
+library(ggplot2)
+third<-aggregate(baltData$Emissions, by=list(baltData$type,baltData$year), sum)
+#qplot(factor(Group.2), data=third, geom="bar", weight=x,fill=factor(Group.1))
+ggplot(third, aes(factor(Group.2), fill=factor(Group.1), weight=x)) + geom_bar(position="dodge") + labs(x="Year", y="Emissions in tons", fill="Type")
+```
+## Emissions from coal combustion-related (1999–2008)
+```{r}
+library(dplyr)
+forth_CSS <- data1[grepl( "comb", data1$SCC.Level.One, ignore.case = TRUE)& grepl("Comb", data1$SCC.Level.Four, ignore.case = TRUE), ]
+forth_CSS <- forth_CSS$SCC
+forthData <- data2[data2$SCC %in% forth_CSS,]
+forth<-aggregate(forthData$Emissions, by=list(forthData$year), sum)
+barplot(forth$x, names.arg = forth$Group.1, horiz = TRUE, col = forth$Group.1, xlab="Emissions given in tons", main="Emissions from coal combustion-related (1999–2008)")
+```
+## Emissions from motor vehicle sources changes from 1999–2008 in Baltimore City
+```{r}
+fifth_CSS <- data1[grepl( "vehicle", data1$EI.Sector, ignore.case = TRUE), ]
+fifth_CSS <- fifth_CSS$SCC
+fifthData <- baltData[baltData$SCC %in% fifth_CSS,]
+fifth<-aggregate(fifthData$Emissions, by=list(fifthData$year), sum)
+barplot(fifth$x, names.arg = fifth$Group.1, horiz = TRUE, col = fifth$Group.1, xlab="Emissions given in tons", main="Emissions from motor vehicle sources in Baltimore city")
+```
+## Comparison emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles  
+```{r}
+renames <- function(x) {
+  if (x =="24510") {
+    return ("Balttimore city")
+  } else{
+      return("Los Angelos")
+  }
+  }
+baltLosData <- subset(data2, data2$fips == "24510" |data2$fips == "06037")
+six_CSS <- data1[grepl( "vehicle", data1$EI.Sector, ignore.case = TRUE), ]
+six_CSS <- six_CSS$SCC
+sixData <- baltLosData[baltData$SCC %in% six_CSS,]
+sixData <- mutate(sixData, name=sapply(sixData$fips, renames))
+sixth<-aggregate(sixData$Emissions, by=list(sixData$year,sixData$name), sum)
+ggplot(sixth, aes(factor(Group.1), fill=factor(Group.2), weight=x)) + geom_bar(position="dodge") + labs(x="Year", y="Emissions in tons", fill="City", title = "Comparison between Baltimore and Los Angelos")
+
+```
+
+# Results  
